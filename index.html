@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>全球金融风险指标看板 | 2026年6月</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+  :root {
+    --bg: #0d1117;
+    --card-bg: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --text-dim: #8b949e;
+    --red: #f85149;
+    --orange: #d2991d;
+    --green: #3fb950;
+    --blue: #58a6ff;
+    --purple: #bc8cff;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    line-height: 1.5;
+  }
+  .header {
+    background: var(--card-bg);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .header h1 { font-size: 20px; font-weight: 600; }
+  .header .update-time { color: var(--text-dim); font-size: 13px; }
+  .risk-summary {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    font-size: 14px;
+  }
+  .risk-badge {
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 12px;
+  }
+  .risk-badge.elevated { background: rgba(210,153,29,0.15); color: var(--orange); border: 1px solid rgba(210,153,29,0.3); }
+  .dashboard {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 16px;
+    padding: 20px 24px;
+  }
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+  }
+  .card.full { grid-column: 1 / -1; }
+  .card.span2 { grid-column: span 2; }
+  .card h3 {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card h3 .icon { font-size: 18px; }
+  .metric-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .metric-row:last-child { border-bottom: none; }
+  .metric-name { font-size: 13px; color: var(--text-dim); }
+  .metric-value { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .metric-change { font-size: 12px; margin-left: 8px; }
+  .metric-change.up { color: var(--red); }
+  .metric-change.down { color: var(--green); }
+  .signal {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 6px;
+  }
+  .signal.red { background: var(--red); box-shadow: 0 0 8px rgba(248,81,73,0.5); }
+  .signal.orange { background: var(--orange); box-shadow: 0 0 8px rgba(210,153,29,0.5); }
+  .signal.yellow { background: #e3b341; }
+  .signal.green { background: var(--green); }
+  .heatmap-grid {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 4px 16px;
+    align-items: center;
+  }
+  .heatmap-bar-bg {
+    width: 120px;
+    height: 8px;
+    background: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .heatmap-bar {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.6s ease;
+  }
+  .threshold-line {
+    margin-top: 16px;
+    padding: 12px;
+    background: rgba(88,166,255,0.05);
+    border: 1px solid rgba(88,166,255,0.15);
+    border-radius: 6px;
+    font-size: 13px;
+  }
+  .threshold-line strong { color: var(--blue); }
+  .conduction-chain {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 0;
+  }
+  .chain-node {
+    padding: 8px 16px;
+    background: rgba(248,81,73,0.08);
+    border: 1px solid rgba(248,81,73,0.2);
+    border-radius: 6px;
+    font-size: 13px;
+    text-align: center;
+    max-width: 280px;
+  }
+  .chain-node.sub { background: rgba(210,153,29,0.06); border-color: rgba(210,153,29,0.2); }
+  .chain-arrow { color: var(--text-dim); font-size: 18px; }
+  .chain-split {
+    display: flex;
+    gap: 16px;
+    width: 100%;
+    justify-content: center;
+  }
+  .chain-branch {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  .footer {
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 12px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .gauge-container {
+    display: flex;
+    justify-content: space-around;
+    padding: 12px 0;
+  }
+  .gauge {
+    text-align: center;
+  }
+  .gauge-value {
+    font-size: 36px;
+    font-weight: 800;
+    line-height: 1;
+  }
+  .gauge-label {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+  .gauge-status {
+    font-size: 12px;
+    font-weight: 600;
+    margin-top: 2px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  th, td {
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  th { color: var(--text-dim); font-weight: 500; font-size: 12px; }
+  .tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .tag.red { background: rgba(248,81,73,0.15); color: var(--red); }
+  .tag.orange { background: rgba(210,153,29,0.15); color: var(--orange); }
+  .tag.green { background: rgba(63,185,80,0.15); color: var(--green); }
+  .tag.yellow { background: rgba(227,179,65,0.15); color: #e3b341; }
+  .source-link { color: var(--blue); text-decoration: none; font-size: 12px; }
+  .source-link:hover { text-decoration: underline; }
+  @media (max-width: 768px) {
+    .dashboard { grid-template-columns: 1fr; padding: 12px; }
+    .card.span2 { grid-column: span 1; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>🌐 全球金融风险指标看板</h1>
+    <div style="font-size:12px;color:var(--text-dim);margin-top:2px;">基于 BIS / IMF / FSB / 美联储 / FRED 数据</div>
+  </div>
+  <div class="risk-summary">
+    <span>综合风险定级：</span>
+    <span class="risk-badge elevated">🟠 结构脆弱 · 短期平静</span>
+    <span style="margin-left:16px;color:var(--text-dim);font-size:12px;">更新：2026-06-17</span>
+  </div>
+</div>
+
+<div class="dashboard">
+
+  <!-- 核心仪表盘 -->
+  <div class="card span2">
+    <h3><span class="icon">⏱️</span>核心实时指标</h3>
+    <div class="gauge-container">
+      <div class="gauge">
+        <div class="gauge-value" style="color:var(--green)">16.20</div>
+        <div class="gauge-label">VIX 恐慌指数</div>
+        <div class="gauge-status" style="color:var(--green)">● 低恐慌 (<20)</div>
+      </div>
+      <div class="gauge">
+        <div class="gauge-value" style="color:var(--orange)">+0.40</div>
+        <div class="gauge-label">2s10s 利差 (pp)</div>
+        <div class="gauge-status" style="color:var(--orange)">● 微弱正值</div>
+      </div>
+      <div class="gauge">
+        <div class="gauge-value" style="color:var(--green)">4.47%</div>
+        <div class="gauge-label">10Y 美债收益率</div>
+        <div class="gauge-status" style="color:var(--green)">● 中等水平</div>
+      </div>
+      <div class="gauge">
+        <div class="gauge-value" style="color:var(--red)">16.3%</div>
+        <div class="gauge-label">NY Fed 衰退概率 (12M)</div>
+        <div class="gauge-status" style="color:var(--green)">● 低于警戒线</div>
+      </div>
+      <div class="gauge">
+        <div class="gauge-value" style="color:var(--red)">>$1万亿</div>
+        <div class="gauge-label">美债年化利息</div>
+        <div class="gauge-status" style="color:var(--red)">● 超国防预算</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 风险热力图 -->
+  <div class="card">
+    <h3><span class="icon">🔥</span>风险热力图</h3>
+    <div class="heatmap-grid">
+      <span style="font-size:13px;">美国主权债务</span>
+      <div><div class="heatmap-bar-bg"><div class="heatmap-bar" style="width:85%;background:var(--red);"></div></div></div>
+      <span style="font-size:13px;">商业地产(CRE)</span>
+      <div><div class="heatmap-bar-bg"><div class="heatmap-bar" style="width:70%;background:var(--orange);"></div></div></div>
+      <span style="font-size:13px;">私人信贷</span>
+      <div><div class="heatmap-bar-bg"><div class="heatmap-bar" style="width:65%;background:var(--orange);"></div></div></div>
+      <span style="font-size:13px;">区域银行</span>
+      <div><div class="heatmap-bar-bg"><div class="heatmap-bar" style="width:50%;background:#e3b341;"></div></div></div>
+      <span style="font-size:13px;">地缘政治</span>
+      <div><div class="heatmap-bar-bg"><div class="heatmap-bar" style="width:45%;background:#e3b341;"></div></div></div>
+      <span style="font-size:13px;">AI泡沫</span>
+      <div><div class="heatmap-bar-bg"><div class="heatmap-bar" style="width:40%;background:#e3b341;"></div></div></div>
+      <span style="font-size:13px;">日本利率正常化</span>
+      <div><div class="heatmap-bar-bg"><div class="heatmap-bar" style="width:25%;background:var(--green);"></div></div></div>
+      <span style="font-size:13px;">中国房地产</span>
+      <div><div class="heatmap-bar-bg"><div class="heatmap-bar" style="width:30%;background:var(--green);"></div></div></div>
+    </div>
+    <div class="threshold-line">
+      <strong>评级逻辑：</strong>红(≥75%)=系统性威胁 · 橙(50-74%)=结构性脆弱 · 黄(30-49%)=需监测 · 绿(<30%)=已释放/低风险
+    </div>
+  </div>
+
+  <!-- 预警阈值表 -->
+  <div class="card">
+    <h3><span class="icon">⚠️</span>预警阈值状态</h3>
+    <table>
+      <thead><tr><th>指标</th><th>当前值</th><th>预警阈值</th><th>状态</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>VIX</td>
+          <td><strong>16.20</strong></td>
+          <td>>25 警戒 / >35 恐慌</td>
+          <td><span class="tag green">安全</span></td>
+        </tr>
+        <tr>
+          <td>2s10s 利差</td>
+          <td><strong>+0.40pp</strong></td>
+          <td><0 倒挂预警</td>
+          <td><span class="tag yellow">微弱</span></td>
+        </tr>
+        <tr>
+          <td>3m10y 利差</td>
+          <td><strong>+0.68pp</strong></td>
+          <td><0 倒挂预警</td>
+          <td><span class="tag yellow">近期转负过</span></td>
+        </tr>
+        <tr>
+          <td>美债利息/GDP</td>
+          <td><strong>3.2%</strong></td>
+          <td>>3% 警戒 / >4% 高危</td>
+          <td><span class="tag orange">警戒</span></td>
+        </tr>
+        <tr>
+          <td>联邦债务/GDP</td>
+          <td><strong>~100%</strong></td>
+          <td>>90% 增长放缓</td>
+          <td><span class="tag red">超标</span></td>
+        </tr>
+        <tr>
+          <td>CRE 到期墙</td>
+          <td><strong>$1.5万亿</strong></td>
+          <td>2025-2027集中到期</td>
+          <td><span class="tag orange">进行中</span></td>
+        </tr>
+        <tr>
+          <td>私人信贷规模</td>
+          <td><strong>$1.5-2.0万亿</strong></td>
+          <td>未经历压力测试</td>
+          <td><span class="tag orange">FSB警告</span></td>
+        </tr>
+        <tr>
+          <td>Fed政策利率</td>
+          <td><strong>4.25%</strong></td>
+          <td>市场定价~100bp降息</td>
+          <td><span class="tag yellow">观望</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 美债利息超国防 -->
+  <div class="card span2" id="debt-chart">
+    <h3><span class="icon">💸</span>美国联邦债务：利息 vs 国防支出</h3>
+    <div id="plot-debt" style="height:320px;"></div>
+  </div>
+
+  <!-- VIX 历史 -->
+  <div class="card" id="vix-chart">
+    <h3><span class="icon">📊</span>VIX 历史走势（2023-2026）</h3>
+    <div id="plot-vix" style="height:300px;"></div>
+  </div>
+
+  <!-- 收益率曲线 -->
+  <div class="card" id="yield-chart">
+    <h3><span class="icon">📈</span>美债收益率曲线</h3>
+    <div id="plot-yield" style="height:300px;"></div>
+  </div>
+
+  <!-- 风险传导链 -->
+  <div class="card full">
+    <h3><span class="icon">🔗</span>风险传导链</h3>
+    <div class="conduction-chain">
+      <div class="chain-node">🔴 美国主权债务<br><small>信用基准侵蚀</small></div>
+      <div class="chain-arrow">▼</div>
+      <div class="chain-node">长端利率上行 / 期限溢价回归</div>
+      <div class="chain-arrow">▼</div>
+      <div class="chain-split">
+        <div class="chain-branch">
+          <div class="chain-node sub">🟠 CRE 再融资压力</div>
+          <div class="chain-arrow">▼</div>
+          <div class="chain-node sub">区域银行资本承压</div>
+        </div>
+        <div class="chain-branch">
+          <div class="chain-node sub">🟠 私人信贷估值重定价</div>
+          <div class="chain-arrow">▼</div>
+          <div class="chain-node sub">LP 赎回潮 / 流动性危机</div>
+        </div>
+        <div class="chain-branch">
+          <div class="chain-node sub">🟡 全球风险资产联动下跌</div>
+          <div class="chain-arrow">▼</div>
+          <div class="chain-node sub">新兴市场资本外流</div>
+        </div>
+      </div>
+      <div class="chain-arrow">▼</div>
+      <div class="chain-node">⚡ 系统性信用事件</div>
+    </div>
+  </div>
+
+  <!-- 历史危机对比 -->
+  <div class="card full">
+    <h3><span class="icon">📜</span>历史金融危机速查</h3>
+    <table>
+      <thead><tr><th>年份</th><th>危机</th><th>核心诱因</th><th>资产</th><th>深度</th><th>复苏</th></tr></thead>
+      <tbody>
+        <tr><td>1637</td><td>荷兰郁金香狂热</td><td>投机泡沫</td><td>郁金香</td><td>局部衰退</td><td>数年</td></tr>
+        <tr><td>1929</td><td>美国大萧条</td><td>杠杆+美联储紧缩</td><td>股票</td><td>道指-89%</td><td>26年</td></tr>
+        <tr><td>1990</td><td>日本泡沫破裂</td><td>地产+股市双重泡沫</td><td>地产/股票</td><td>失落二十年</td><td>20年+</td></tr>
+        <tr><td>1997</td><td>亚洲金融危机</td><td>外债+固定汇率</td><td>货币/股票</td><td>GDP骤降</td><td>3-5年</td></tr>
+        <tr><td>2000</td><td>互联网泡沫</td><td>科技股估值</td><td>股票</td><td>纳指-78%</td><td>3年</td></tr>
+        <tr><td>2008</td><td>全球金融危机</td><td>次贷→CDO→传染</td><td>地产/衍生品</td><td>全球衰退</td><td>5年(美股)</td></tr>
+        <tr><td>2010</td><td>欧债危机</td><td>财政赤字+货币统一</td><td>主权债</td><td>边缘国家衰退</td><td>3-8年</td></tr>
+        <tr><td>2020</td><td>新冠危机</td><td>疫情冲击</td><td>全部</td><td>史上最快衰退</td><td>1-2年</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 监测清单 -->
+  <div class="card full">
+    <h3><span class="icon">✅</span>月度跟踪检查清单</h3>
+    <table>
+      <thead><tr><th>检查项</th><th>数据源</th><th>更新频率</th><th>关键阈值</th><th>当前动作</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>VIX 是否突破 25？</td>
+          <td><a class="source-link" href="https://fred.stlouisfed.org/series/VIXCLS" target="_blank">FRED →</a></td>
+          <td>每日</td>
+          <td>>25=减风险敞口</td>
+          <td><span class="tag green">无需动作</span></td>
+        </tr>
+        <tr>
+          <td>2s10s 是否再次倒挂？</td>
+          <td><a class="source-link" href="https://fred.stlouisfed.org/series/T10Y2Y" target="_blank">FRED →</a></td>
+          <td>每日</td>
+          <td><0=衰退概率↑</td>
+          <td><span class="tag yellow">密切观察</span></td>
+        </tr>
+        <tr>
+          <td>10Y 美债是否突破 5%？</td>
+          <td><a class="source-link" href="https://fred.stlouisfed.org/series/DGS10" target="_blank">FRED →</a></td>
+          <td>每日</td>
+          <td>>5%=债务危机定价</td>
+          <td><span class="tag green">未触发</span></td>
+        </tr>
+        <tr>
+          <td>信贷/GDP 缺口是否 >10%？</td>
+          <td><a class="source-link" href="https://data.bis.org/topics/CREDIT_GAPS" target="_blank">BIS →</a></td>
+          <td>季度</td>
+          <td>>10%=金融过热</td>
+          <td><span class="tag yellow">需查最新</span></td>
+        </tr>
+        <tr>
+          <td>CRE 违约率是否跳升？</td>
+          <td>FDIC/Fed H.8</td>
+          <td>季度</td>
+          <td>违约率>5%=系统性</td>
+          <td><span class="tag orange">关注区域银行</span></td>
+        </tr>
+        <tr>
+          <td>FSB 是否升级私人信贷警告？</td>
+          <td><a class="source-link" href="https://www.fsb.org" target="_blank">FSB →</a></td>
+          <td>不定期</td>
+          <td>监管趋严=信号</td>
+          <td><span class="tag orange">2026.05已警告</span></td>
+        </tr>
+        <tr>
+          <td>CBO 债务/GDP 预测是否上修？</td>
+          <td><a class="source-link" href="https://www.cbo.gov" target="_blank">CBO →</a></td>
+          <td>年度</td>
+          <td>预测上修=恶化</td>
+          <td><span class="tag orange">2035预测118%</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<div class="footer">
+  <div>
+    数据来源：FRED (Federal Reserve) · BIS · IMF · FSB · CBO · U.S. Treasury · CBOE
+  </div>
+  <div>
+    仅供分析参考，不构成投资建议 | X-LAB Research
+  </div>
+</div>
+
+<script>
+// ===== 美债利息 vs 国防支出 =====
+(function() {
+  const years = [2015,2016,2017,2018,2019,2020,2021,2022,2023,2024,2025,2026];
+  const defense = [583,595,606,631,686,714,740,766,816,874,920,970];
+  const interest = [402,432,458,523,574,522,562,717,879,950,1030,1120];
+  // 2026 estimated (CBO + Q1 actual run-rate)
+
+  const trace1 = {
+    x: years, y: interest, type: 'bar', name: '净利息支出',
+    marker: { color: 'rgba(248,81,73,0.7)', line: { color: 'var(--red)', width: 1 } },
+    hovertemplate: 'FY%{x}: $%{y}B<extra></extra>'
+  };
+  const trace2 = {
+    x: years, y: defense, type: 'bar', name: '国防支出',
+    marker: { color: 'rgba(88,166,255,0.6)', line: { color: 'var(--blue)', width: 1 } },
+    hovertemplate: 'FY%{x}: $%{y}B<extra></extra>'
+  };
+  // Crossover annotation line
+  const trace3 = {
+    x: [2025.5, 2025.5], y: [0, 1200], mode: 'lines',
+    line: { color: 'rgba(210,153,29,0.6)', width: 2, dash: 'dash' },
+    name: '利息超越国防', showlegend: false,
+    hovertemplate: '利息超越国防<extra></extra>'
+  };
+
+  const layout = {
+    barmode: 'group',
+    paper_bgcolor: 'transparent',
+    plot_bgcolor: 'transparent',
+    font: { color: '#8b949e', size: 11 },
+    margin: { l: 40, r: 10, t: 10, b: 30 },
+    xaxis: { dtick: 1, gridcolor: 'rgba(48,54,61,0.3)' },
+    yaxis: { title: '十亿美元', gridcolor: 'rgba(48,54,61,0.3)', rangemode: 'nonnegative' },
+    legend: { orientation: 'h', y: 1.15, font: { color: '#c9d1d9' } },
+    annotations: [{
+      x: 2025.5, y: 1050, text: '利息超国防 ⚠', showarrow: false,
+      font: { color: '#d2991d', size: 11 }, xanchor: 'center'
+    }]
+  };
+  Plotly.newPlot('plot-debt', [trace1, trace2, trace3], layout, { displayModeBar: false, responsive: true });
+})();
+
+// ===== VIX 历史走势 =====
+(function() {
+  // Approximate monthly VIX close, 2023-01 to 2026-06
+  const dates = [
+    '2023-01','2023-03','2023-05','2023-07','2023-09','2023-11',
+    '2024-01','2024-03','2024-05','2024-07','2024-09','2024-11',
+    '2025-01','2025-03','2025-05','2025-07','2025-09','2025-11',
+    '2026-01','2026-03','2026-05','2026-06'
+  ];
+  const vix = [19.4,18.7,18.0,14.2,17.5,13.1,
+               14.3,14.7,12.9,16.4,16.7,15.0,
+               18.2,22.4,19.3,17.8,21.2,17.5,
+               15.8,18.6,19.9,16.2];
+
+  const trace = {
+    x: dates, y: vix, type: 'scatter', mode: 'lines+markers',
+    line: { color: '#58a6ff', width: 2 },
+    marker: { size: 4, color: '#58a6ff' },
+    hovertemplate: '%{x}: VIX=%{y}<extra></extra>'
+  };
+  const layout = {
+    paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
+    font: { color: '#8b949e', size: 11 },
+    margin: { l: 40, r: 10, t: 10, b: 30 },
+    xaxis: { gridcolor: 'rgba(48,54,61,0.3)', tickangle: -45, nticks: 10 },
+    yaxis: { gridcolor: 'rgba(48,54,61,0.3)' },
+    shapes: [
+      { type: 'line', x0: dates[0], x1: dates[dates.length-1], y0: 20, y1: 20,
+        line: { color: 'rgba(210,153,29,0.4)', width: 1, dash: 'dash' } },
+      { type: 'line', x0: dates[0], x1: dates[dates.length-1], y0: 25, y1: 25,
+        line: { color: 'rgba(248,81,73,0.4)', width: 1, dash: 'dash' } }
+    ],
+    annotations: [
+      { x: dates[dates.length-1], y: 20, text: '警戒20', showarrow: false,
+        font: { color: 'rgba(210,153,29,0.6)', size: 10 }, xanchor: 'left', yanchor: 'bottom' },
+      { x: dates[dates.length-1], y: 25, text: '恐慌25', showarrow: false,
+        font: { color: 'rgba(248,81,73,0.6)', size: 10 }, xanchor: 'left', yanchor: 'bottom' }
+    ]
+  };
+  Plotly.newPlot('plot-vix', [trace], layout, { displayModeBar: false, responsive: true });
+})();
+
+// ===== 美债收益率曲线 =====
+(function() {
+  const maturities = ['1M','3M','6M','1Y','2Y','3Y','5Y','7Y','10Y','20Y','30Y'];
+  // Approximate as of mid-June 2026
+  const current = [4.32,4.28,4.20,4.02,3.95,4.00,4.12,4.30,4.47,4.78,4.97];
+  // One year ago approximation
+  const yearAgo = [5.30,5.38,5.40,5.10,4.70,4.45,4.30,4.25,4.35,4.65,4.65];
+
+  const trace1 = {
+    x: maturities, y: current, type: 'scatter', mode: 'lines+markers',
+    name: '2026-06-16', line: { color: '#58a6ff', width: 2.5 },
+    marker: { size: 6 }, hovertemplate: '%{x}: %{y}%<extra></extra>'
+  };
+  const trace2 = {
+    x: maturities, y: yearAgo, type: 'scatter', mode: 'lines+markers',
+    name: '2025年中', line: { color: 'rgba(139,148,158,0.5)', width: 1.5, dash: 'dot' },
+    marker: { size: 4 }, hovertemplate: '%{x}: %{y}%<extra></extra>'
+  };
+  const layout = {
+    paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
+    font: { color: '#8b949e', size: 11 },
+    margin: { l: 40, r: 10, t: 10, b: 30 },
+    xaxis: { gridcolor: 'rgba(48,54,61,0.3)' },
+    yaxis: { gridcolor: 'rgba(48,54,61,0.3)', ticksuffix: '%' },
+    legend: { orientation: 'h', y: 1.15, font: { color: '#c9d1d9' } }
+  };
+  Plotly.newPlot('plot-yield', [trace1, trace2], layout, { displayModeBar: false, responsive: true });
+})();
+</script>
+
+</body>
+</html>
